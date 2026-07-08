@@ -464,6 +464,18 @@ namespace bgfx
 		return &g_internalData;
 	}
 
+	uintptr_t getInternal(TextureHandle _handle)
+	{
+		BGFX_CHECK_API_THREAD();
+
+		if (!isValid(_handle) || !s_ctx->m_textureHandle.isValid(_handle.idx) )
+		{
+			return 0;
+		}
+
+		return s_ctx->m_renderCtx->getInternal(_handle);
+	}
+
 	uintptr_t overrideInternal(TextureHandle _handle, uintptr_t _ptr, uint16_t _layerIndex)
 	{
 		BGFX_CHECK_RENDER_THREAD();
@@ -2456,7 +2468,11 @@ namespace bgfx
 
 		BGFX_PROFILER_SCOPE("bgfx/API thread frame", kColorSubmit);
 		// wait for render thread to finish
-		renderSemWait();
+		if (!m_renderFrameWaited)
+		{
+			renderSemWait();
+		}
+		m_renderFrameWaited = false;
 		frameNoRenderWait();
 
 		m_encoder[0].begin(m_submit, 0);
@@ -2613,6 +2629,13 @@ namespace bgfx
 			{
 				BGFX_PROFILER_SCOPE("bgfx/Exec commands post", kColorResource);
 				rendererExecCommands(m_render->m_cmdPost);
+			}
+
+			if (NULL != m_renderFrameCallback
+			&&  0 != m_render->m_renderFrameCallbackData)
+			{
+				BGFX_PROFILER_SCOPE("bgfx/Render frame callback", kColorResource);
+				m_renderFrameCallback(m_renderFrameCallbackUserData, m_render->m_renderFrameCallbackData);
 			}
 
 			renderSemPost();
@@ -4275,6 +4298,24 @@ namespace bgfx
 	{
 		BGFX_CHECK_API_THREAD();
 		return s_ctx->frame(_flags);
+	}
+
+	void setRenderFrameCallback(void (*_callback)(void*, uintptr_t), void* _userData)
+	{
+		BGFX_CHECK_API_THREAD();
+		s_ctx->setRenderFrameCallback(_callback, _userData);
+	}
+
+	void setRenderFrameCallbackData(uintptr_t _frameData)
+	{
+		BGFX_CHECK_API_THREAD();
+		s_ctx->setRenderFrameCallbackData(_frameData);
+	}
+
+	void waitForRenderFrame()
+	{
+		BGFX_CHECK_API_THREAD();
+		s_ctx->waitForRenderFrame();
 	}
 
 	const Caps* getCaps()

@@ -14,6 +14,45 @@ namespace bgfx { namespace d3d11
 	static wchar_t s_viewNameW[BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
 	static char    s_viewName [BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
 
+#if BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
+	struct ID3D10Multithread : public IUnknown
+	{
+		virtual void STDMETHODCALLTYPE Enter() = 0;
+		virtual void STDMETHODCALLTYPE Leave() = 0;
+		virtual BOOL STDMETHODCALLTYPE SetMultithreadProtected(BOOL _mtProtect) = 0;
+		virtual BOOL STDMETHODCALLTYPE GetMultithreadProtected() = 0;
+	};
+
+	static const GUID s_iidD3D10Multithread = { 0x9b7e4e00, 0x342c, 0x4106, { 0xa1, 0x9f, 0x4f, 0x27, 0x04, 0xf6, 0x89, 0xf0 } };
+
+	static void enableMultithreadProtection(ID3D11Device* _device, ID3D11DeviceContext* _deviceCtx)
+	{
+		ID3D10Multithread* multithread = NULL;
+		HRESULT hr = NULL != _deviceCtx
+			? _deviceCtx->QueryInterface(s_iidD3D10Multithread, (void**)&multithread)
+			: E_NOINTERFACE
+			;
+
+		if (FAILED(hr)
+		&&  NULL != _device)
+		{
+			hr = _device->QueryInterface(s_iidD3D10Multithread, (void**)&multithread);
+		}
+
+		if (SUCCEEDED(hr)
+		&&  NULL != multithread)
+		{
+			multithread->SetMultithreadProtected(TRUE);
+			DX_RELEASE_I(multithread);
+			BX_TRACE("D3D11 multithread protection enabled.");
+		}
+		else
+		{
+			BX_TRACE("D3D11 device does not expose ID3D10Multithread; external D3D interop must be synchronized by the caller.");
+		}
+	}
+#endif // BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
+
 	inline void setViewType(ViewId _view, const bx::StringView _str)
 	{
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG_ANNOTATION | BGFX_CONFIG_PROFILER) )
@@ -927,7 +966,9 @@ namespace bgfx { namespace d3d11
 				for (;;)
 				{
 					uint32_t flags = 0
+#if !BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
 						| D3D11_CREATE_DEVICE_SINGLETHREADED
+#endif // !BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
 						| D3D11_CREATE_DEVICE_BGRA_SUPPORT
 //						| D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS
 						| (_init.debug ? D3D11_CREATE_DEVICE_DEBUG : 0)
@@ -982,6 +1023,10 @@ namespace bgfx { namespace d3d11
 					goto error;
 				}
 			}
+
+#if BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
+			enableMultithreadProtection(m_device, m_deviceCtx);
+#endif // BGFX_CONFIG_RENDERER_D3D11_MULTITHREAD_PROTECTION
 
 			m_dxgi.update(m_device);
 

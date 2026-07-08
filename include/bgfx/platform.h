@@ -52,6 +52,25 @@ namespace bgfx
 	///
 	RenderFrame::Enum renderFrame(int32_t _msecs = -1);
 
+	/// Render-thread callback invoked after a frame is submitted by the renderer backend.
+	///
+	/// This is for interop work that must run on bgfx's
+	/// render thread. `_frameData` is the value set by `setRenderFrameCallbackData`
+	/// for the submitted frame.
+	typedef void (*RenderFrameCallback)(void* _userData, uintptr_t _frameData);
+
+	/// Set render-thread callback.
+	///
+	/// @warning Callback is called from bgfx's render thread.
+	void setRenderFrameCallback(RenderFrameCallback _callback, void* _userData);
+
+	/// Set callback data for the next submitted frame.
+	void setRenderFrameCallbackData(uintptr_t _frameData);
+
+	/// Wait for bgfx's render thread to finish the currently submitted frame without
+	/// submitting/releasing another frame.
+	void waitForRenderFrame();
+
 	/// Set platform data.
 	///
 	/// @warning Must be called before `bgfx::init`.
@@ -80,6 +99,18 @@ namespace bgfx
 	/// @attention C99's equivalent binding is `bgfx_get_internal_data`.
 	///
 	const InternalData* getInternalData();
+
+	/// Get native texture handle for interop.
+	///
+	/// @attention It's expected you understand some bgfx internals before you
+	///   use this call. The texture must remain alive, and texture creation must
+	///   have been processed by the render thread before calling this function.
+	///
+	/// @param[in] _handle Texture handle.
+	///
+	/// @returns Native API texture handle, or 0 if unavailable.
+	///
+	uintptr_t getInternal(TextureHandle _handle);
 
 	/// Override internal texture with externally created texture. Previously
 	/// created internal texture will released.

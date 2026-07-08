@@ -2414,6 +2414,7 @@ namespace bgfx
 		Frame()
 			: m_waitSubmit(0)
 			, m_waitRender(0)
+			, m_renderFrameCallbackData(0)
 			, m_frameNum(0)
 			, m_capture(false)
 		{
@@ -2486,6 +2487,7 @@ namespace bgfx
 			m_cmdPost.start();
 			m_capture = false;
 			m_numScreenShots = 0;
+			m_renderFrameCallbackData = 0;
 			m_frameNum = frameNum;
 		}
 
@@ -2697,6 +2699,7 @@ namespace bgfx
 		int64_t m_waitSubmit;
 		int64_t m_waitRender;
 
+		uintptr_t m_renderFrameCallbackData;
 		uint32_t m_frameNum;
 
 		bool m_capture;
@@ -3744,6 +3747,9 @@ namespace bgfx
 			, m_rendererInitialized(false)
 			, m_exit(false)
 			, m_flipAfterRender(false)
+			, m_renderFrameCallback(NULL)
+			, m_renderFrameCallbackUserData(NULL)
+			, m_renderFrameWaited(false)
 			, m_singleThreaded(false)
 		{
 		}
@@ -5806,6 +5812,26 @@ namespace bgfx
 
 		BGFX_API_FUNC(uint32_t frame(uint8_t _flags = BGFX_FRAME_NONE) );
 
+		BGFX_API_FUNC(void waitForRenderFrame() )
+		{
+			if (!m_renderFrameWaited)
+			{
+				renderSemWait();
+				m_renderFrameWaited = true;
+			}
+		}
+
+		BGFX_API_FUNC(void setRenderFrameCallback(void (*_callback)(void*, uintptr_t), void* _userData) )
+		{
+			m_renderFrameCallback = _callback;
+			m_renderFrameCallbackUserData = _userData;
+		}
+
+		BGFX_API_FUNC(void setRenderFrameCallbackData(uintptr_t _frameData) )
+		{
+			m_submit->m_renderFrameCallbackData = _frameData;
+		}
+
 		uint32_t getSeqIncr(ViewId _id)
 		{
 			return bx::atomicFetchAndAdd<uint32_t>(&m_seq[_id], 1);
@@ -6010,10 +6036,14 @@ namespace bgfx
 
 		RendererContextI* m_renderCtx;
 
+		void (*m_renderFrameCallback)(void*, uintptr_t);
+		void* m_renderFrameCallbackUserData;
+
 		bool m_headless;
 		bool m_rendererInitialized;
 		bool m_exit;
 		bool m_flipAfterRender;
+		bool m_renderFrameWaited;
 		bool m_singleThreaded;
 		bool m_flipped;
 
