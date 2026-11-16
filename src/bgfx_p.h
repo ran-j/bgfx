@@ -2872,10 +2872,11 @@ namespace bgfx
 
 		void start(uint32_t frameNum)
 		{
-            for (NativePassPacket &pass : m_nativePasses)
+            for (uint16_t nativeIndex = 0; nativeIndex < m_numNativePasses; ++nativeIndex)
             {
-                pass.callback = nullptr;
+                m_nativePasses[m_nativeViews[nativeIndex]].callback = nullptr;
             }
+            m_numNativePasses = 0;
 
 			m_perfStats.transientVbUsed = m_vboffset;
 			m_perfStats.transientIbUsed = m_iboffset;
@@ -3002,6 +3003,8 @@ namespace bgfx
 		View m_view[BGFX_CONFIG_MAX_VIEWS];
 
         NativePassPacket m_nativePasses[BGFX_CONFIG_MAX_VIEWS];
+        ViewId m_nativeViews[BGFX_CONFIG_MAX_VIEWS];
+        uint16_t m_numNativePasses = 0;
 
 		int32_t m_occlusion[BGFX_CONFIG_MAX_OCCLUSION_QUERIES];
 

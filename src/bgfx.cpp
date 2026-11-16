@@ -6117,6 +6117,7 @@ namespace bgfx
         }
 
         packet.callback = callback;
+        s_ctx->m_submit->m_nativeViews[s_ctx->m_submit->m_numNativePasses++] = view;
         packet.textureCount = textureCount;
         if (payloadSize != 0)
         {
