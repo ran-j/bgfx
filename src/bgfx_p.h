@@ -21,6 +21,7 @@
 #endif // BX_CONFIG_DEBUG
 
 #include <bgfx/bgfx.h>
+#include <bgfx/native.h>
 #include "config.h"
 
 #include <inttypes.h>
@@ -2709,6 +2710,14 @@ namespace bgfx
 		FrameBufferHandle handle;
 	};
 
+    struct NativePassPacket
+    {
+        NativePassCallback callback = nullptr;
+        alignas(16) uint8_t payload[kNativePassMaxPayload];
+        NativeTextureBinding textures[kNativePassMaxTextures];
+        uint8_t textureCount;
+    };
+
 	BX_ALIGN_DECL_CACHE_LINE(struct) Frame
 	{
 		Frame()
@@ -2863,6 +2872,11 @@ namespace bgfx
 
 		void start(uint32_t frameNum)
 		{
+            for (NativePassPacket &pass : m_nativePasses)
+            {
+                pass.callback = nullptr;
+            }
+
 			m_perfStats.transientVbUsed = m_vboffset;
 			m_perfStats.transientIbUsed = m_iboffset;
 
@@ -2986,6 +3000,8 @@ namespace bgfx
 		float m_colorPalette[BGFX_CONFIG_MAX_COLOR_PALETTE][4];
 
 		View m_view[BGFX_CONFIG_MAX_VIEWS];
+
+        NativePassPacket m_nativePasses[BGFX_CONFIG_MAX_VIEWS];
 
 		int32_t m_occlusion[BGFX_CONFIG_MAX_OCCLUSION_QUERIES];
 

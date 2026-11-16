@@ -6083,6 +6083,53 @@ namespace bgfx
 		s_ctx->setViewName(_id, bx::StringView(_name, _len) );
 	}
 
+    bool submitNative(ViewId view, NativePassCallback callback, const void *payload, uint16_t payloadSize, const NativeTextureBinding *textures, uint8_t textureCount)
+    {
+        BGFX_CHECK_API_THREAD();
+        if (!checkView(view) || callback == nullptr || s_ctx->m_encoder0 == nullptr || payloadSize > kNativePassMaxPayload || (payloadSize != 0 && payload == nullptr) || textureCount > kNativePassMaxTextures || (textureCount != 0 && textures == nullptr) || g_caps.rendererType != RendererType::Direct3D12 || (g_caps.supported & BGFX_CAPS_NATIVE_PASS) == 0)
+        {
+            return false;
+        }
+
+        NativePassPacket &packet = s_ctx->m_submit->m_nativePasses[view];
+        if (packet.callback != nullptr)
+        {
+            return false;
+        }
+        for (uint8_t textureIndex = 0; textureIndex < textureCount; ++textureIndex)
+        {
+            const NativeTextureBinding &binding = textures[textureIndex];
+            if (!isValid(binding.handle) || !s_ctx->m_textureHandle.isValid(binding.handle.idx) || binding.access < Access::Read || binding.access >= Access::Count)
+            {
+                return false;
+            }
+            if (binding.access != Access::Read && (s_ctx->m_textureRef[ binding.handle.idx ].m_flags & BGFX_TEXTURE_COMPUTE_WRITE) == 0)
+            {
+                return false;
+            }
+            for (uint8_t previousIndex = 0; previousIndex < textureIndex; ++previousIndex)
+            {
+                if (textures[previousIndex].handle.idx == binding.handle.idx)
+                {
+                    return false;
+                }
+            }
+        }
+
+        packet.callback = callback;
+        packet.textureCount = textureCount;
+        if (payloadSize != 0)
+        {
+            bx::memCopy(packet.payload, payload, payloadSize);
+        }
+        if (textureCount != 0)
+        {
+            bx::memCopy(packet.textures, textures, textureCount * sizeof(NativeTextureBinding));
+        }
+        s_ctx->m_encoder0->touch(view);
+        return true;
+    }
+
 	void setViewRect(ViewId _id, int16_t _x, int16_t _y, uint16_t _width, uint16_t _height)
 	{
 		BX_ASSERT(checkView(_id), "Invalid view id: %d", _id);

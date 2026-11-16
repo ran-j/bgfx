@@ -1198,6 +1198,11 @@ namespace bgfx { namespace d3d12
 				BX_TRACE("\tSRVOnlyTiledResourceTier3 %d", options5.SRVOnlyTiledResourceTier3);
 				BX_TRACE("\tRenderPassesTier %d", options5.RenderPassesTier);
 				BX_TRACE("\tRaytracingTier %d", options5.RaytracingTier);
+                D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_5 };
+                if (options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1 && SUCCEEDED(m_device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel))) && shaderModel.HighestShaderModel >= D3D_SHADER_MODEL_6_5)
+                {
+                    g_caps.supported |= BGFX_CAPS_RAY_QUERY;
+                }
 				break;
 			}
 
@@ -1728,6 +1733,7 @@ namespace bgfx { namespace d3d12
 					| BGFX_CAPS_ALPHA_TO_COVERAGE
 					| BGFX_CAPS_BLEND_INDEPENDENT
 					| BGFX_CAPS_COMPUTE
+                    | BGFX_CAPS_NATIVE_PASS
 					| BGFX_CAPS_DRAW_INDIRECT
 					| BGFX_CAPS_DRAW_INDIRECT_COUNT
 					| BGFX_CAPS_FRAGMENT_DEPTH
@@ -8062,6 +8068,32 @@ namespace bgfx { namespace d3d12
 					resolveFrameBuffer(renderView.m_fbh);
 					submitUniformCache(ucs, view);
 					submitBlit(bs, view);
+
+                    const NativePassPacket &nativePass = _render->m_nativePasses[view];
+                    if (nativePass.callback != nullptr)
+                    {
+                        NativePassContext nativeContext = {};
+                        nativeContext.rendererType = RendererType::Direct3D12;
+                        nativeContext.device = m_device;
+                        nativeContext.commandList = m_commandList;
+                        nativeContext.completionFence = m_cmd.m_fence;
+                        nativeContext.completionValue = m_cmd.m_currentFence;
+                        nativeContext.frame = _render->m_frameNum;
+                        nativeContext.textureCount = nativePass.textureCount;
+                        for (uint8_t textureIndex = 0; textureIndex < nativePass.textureCount; ++textureIndex)
+                        {
+                            const NativeTextureBinding &binding = nativePass.textures[textureIndex];
+                            TextureD3D12 &texture = m_textures[binding.handle.idx];
+                            texture.setState(m_commandList, binding.access == Access::Read ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                            nativeContext.textures[textureIndex] = texture.m_ptr;
+                        }
+
+                        nativePass.callback(nativeContext, nativePass.payload);
+
+                        D3D12_RESOURCE_BARRIER nativeBarrier = {};
+                        nativeBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                        m_commandList->ResourceBarrier(1, &nativeBarrier);
+                    }
 
 					fbh = _render->m_view[view].m_fbh;
 					setFrameBuffer(fbh);
