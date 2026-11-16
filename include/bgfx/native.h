@@ -7,7 +7,7 @@
 
 namespace bgfx
 {
-    constexpr uint8_t kNativePassMaxTextures = 8;
+    constexpr uint8_t kNativePassMaxTextures = 12;
     constexpr uint16_t kNativePassMaxPayload = 256;
 
     struct NativeTextureBinding

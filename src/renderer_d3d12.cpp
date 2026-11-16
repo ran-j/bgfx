@@ -2326,7 +2326,7 @@ namespace bgfx { namespace d3d12
 
 		void readTexture(TextureHandle _handle, void* _data, uint16_t _layer, uint8_t _mip) override
 		{
-			const TextureD3D12& texture = m_textures[_handle.idx];
+			TextureD3D12& texture = m_textures[_handle.idx];
 
 			const uint32_t subresource = _mip + _layer*texture.m_numMips;
 
@@ -2373,7 +2373,9 @@ namespace bgfx { namespace d3d12
 			D3D12_TEXTURE_COPY_LOCATION dstLocation = { readback,      D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,  { layout } };
 			D3D12_TEXTURE_COPY_LOCATION srcLocation = { texture.m_ptr, D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, { }        };
 			srcLocation.SubresourceIndex = subresource;
+			const D3D12_RESOURCE_STATES previousState = texture.setState(m_commandList, D3D12_RESOURCE_STATE_COPY_SOURCE);
 			m_commandList->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, &box);
+			texture.setState(m_commandList, previousState);
 
 			finish();
 			m_commandList = m_cmd.alloc();
@@ -2532,7 +2534,7 @@ namespace bgfx { namespace d3d12
 			}
 			else if (NULL != m_swapChain)
 			{
-				uint32_t idx = (m_backBufferColorIdx-1) % m_scd.bufferCount;
+				const uint32_t idx = m_backBufferColorIdx;
 				m_cmd.finish(m_backBufferColorFence[idx]);
 				backBuffer = m_backBufferColor[idx];
 			}
